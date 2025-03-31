@@ -27,7 +27,7 @@ func NewWalletRepository(db *sql.DB) *WalletRepository {
 	}
 }
 
-func (r *WalletRepository) CreaetWallet(ctx context.Context, id uuid.UUID) (*models.Wallet, error) {
+func (r *WalletRepository) CreateWallet(ctx context.Context, id uuid.UUID) (*models.Wallet, error) {
 	wallet := &models.Wallet{
 		ID:        id,
 		Balance:   0,
