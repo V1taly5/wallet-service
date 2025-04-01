@@ -1,15 +1,19 @@
 package config
 
 import (
+	"bufio"
+	"errors"
 	"flag"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
 type Config struct {
-	ServerPort int `env:"SERVER_PORT" env-default:"8080"`
+	ServerPort int `env:"SERVER_PORT" envconfig:"SERVER_PORT"`
 	DataBase   DatabaseConfig
 
 	ConnectionPool ConnectionPoolConfig
@@ -49,4 +53,45 @@ func fetchConfigPath() string {
 	}
 	return res
 
+}
+
+var ErrInvalidString = errors.New("invalid string")
+var ErrFileFormat = errors.New("incorrect file format")
+
+func LoadEnv() error {
+	filePath := fetchConfigPath()
+
+	if filepath.Ext(filePath) != ".env" {
+		return ErrFileFormat
+	}
+	file, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if len(line) == 0 || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			return ErrInvalidString
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		os.Setenv(key, value)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	return nil
 }

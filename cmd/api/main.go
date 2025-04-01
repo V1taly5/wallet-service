@@ -14,16 +14,26 @@ import (
 	"wallet-service/internal/config"
 	"wallet-service/internal/repository"
 	"wallet-service/internal/service"
+
+	"github.com/kelseyhightower/envconfig"
+
+	_ "github.com/lib/pq"
 )
 
 func main() {
-	config := config.MustLoad()
-
-	db, err := initDatabase(*config)
+	config.LoadEnv()
+	var config config.Config
+	err := envconfig.Process("", &config)
+	if err != nil {
+		return
+	}
+	fmt.Println(config)
+	db, err := initDatabase(config)
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 
 	}
+
 	defer db.Close()
 
 	walletRepo := repository.NewWalletRepository(db)
@@ -66,6 +76,7 @@ func main() {
 
 func initDatabase(cfg config.Config) (*sql.DB, error) {
 	db, err := sql.Open("postgres", cfg.DataBase.URL)
+	fmt.Println(cfg.DataBase.URL)
 	if err != nil {
 		return nil, err
 	}
