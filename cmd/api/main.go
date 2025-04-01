@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -20,6 +21,12 @@ import (
 	_ "github.com/lib/pq"
 )
 
+const (
+	envLocal = "local"
+	envDev   = "dev"
+	envProd  = "prod"
+)
+
 func main() {
 	config.LoadEnv()
 	var config config.Config
@@ -33,16 +40,17 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 
 	}
-
 	defer db.Close()
 
-	walletRepo := repository.NewWalletRepository(db)
+	logger := setupLogger(config.Env)
+
+	walletRepo := repository.NewWalletRepository(db, logger)
 
 	if err = walletRepo.CreateTabeIfNotExists(context.Background()); err != nil {
 		log.Fatalf("Failed to create table: %v", err)
 	}
 
-	walletService := service.NewWalletService(walletRepo)
+	walletService := service.NewWalletService(walletRepo, logger)
 
 	router := api.NewRouter(walletService)
 
@@ -90,4 +98,17 @@ func initDatabase(cfg config.Config) (*sql.DB, error) {
 	db.SetConnMaxLifetime(time.Duration(cfg.ConnectionPool.MaxLifetime) * time.Second)
 
 	return db, nil
+}
+
+func setupLogger(env string) *slog.Logger {
+	var log *slog.Logger
+	switch env {
+	case envLocal:
+		log = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	case envDev:
+		log = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	case envProd:
+		log = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	}
+	return log
 }

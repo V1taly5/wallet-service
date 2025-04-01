@@ -13,7 +13,8 @@ import (
 )
 
 type Config struct {
-	ServerPort int `env:"SERVER_PORT" envconfig:"SERVER_PORT"`
+	Env        string `env:"ENV" envconfig:"ENV"`
+	ServerPort int    `env:"SERVER_PORT" envconfig:"SERVER_PORT"`
 	DataBase   DatabaseConfig
 
 	ConnectionPool ConnectionPoolConfig
