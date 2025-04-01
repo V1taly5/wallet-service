@@ -6,7 +6,7 @@ ENV CGO_ENABLED=0 \
     GOOS=linux \
     GOARCH=amd64
 
-# Установка необходимых утилит
+# Установка git
 RUN apk update && apk add --no-cache git
 
 # Установка рабочей директории
@@ -18,6 +18,7 @@ COPY go.mod ./
 # Загрузка зависимостей
 RUN go mod download
 
+# Удаление git 
 RUN apk del git
 
 # Копирование исходного кода
