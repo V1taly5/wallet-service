@@ -64,7 +64,7 @@ func (r *WalletRepository) CreateWallet(ctx context.Context, id uuid.UUID) (*mod
 }
 
 func (r *WalletRepository) GetWallet(ctx context.Context, id uuid.UUID) (*models.Wallet, error) {
-	query := `SELECT id, balance, created_at, updated_up, version) FROM wallets WHERE id = $1`
+	query := `SELECT id, balance, created_at, updated_at, version FROM wallets WHERE id = $1`
 	wallet := &models.Wallet{}
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&wallet.ID,

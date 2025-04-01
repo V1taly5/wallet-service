@@ -11,6 +11,6 @@ func NewRouter(walletService *service.WalletService) *http.ServeMux {
 
 	mux.HandleFunc("POST /api/v1/wallets", handler.CreateWallet)
 	mux.HandleFunc("GET /api/v1/wallets/{id}", handler.GetWallet)
-	mux.HandleFunc("POST /api/vi/wallet", handler.ProcessOperation)
+	mux.HandleFunc("POST /api/v1/wallet", handler.ProcessOperation)
 	return mux
 }
