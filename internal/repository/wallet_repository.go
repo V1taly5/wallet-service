@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"time"
 	"wallet-service/internal/models"
 
@@ -18,16 +19,21 @@ var (
 )
 
 type WalletRepository struct {
-	db *sql.DB
+	db  *sql.DB
+	log *slog.Logger
 }
 
-func NewWalletRepository(db *sql.DB) *WalletRepository {
+func NewWalletRepository(db *sql.DB, log *slog.Logger) *WalletRepository {
 	return &WalletRepository{
-		db: db,
+		db:  db,
+		log: log,
 	}
 }
 
 func (r *WalletRepository) CreateWallet(ctx context.Context, id uuid.UUID) (*models.Wallet, error) {
+	op := "repository.CreateWallet"
+	log := r.log.With(slog.String("op", op), slog.String("wallet_id", id.String()))
+
 	wallet := &models.Wallet{
 		ID:        id,
 		Balance:   0,
@@ -57,13 +63,16 @@ func (r *WalletRepository) CreateWallet(ctx context.Context, id uuid.UUID) (*mod
 	)
 
 	if err != nil {
+		log.Error("unexpected error while creating wallet", slog.Attr{Key: "error", Value: slog.StringValue(err.Error())})
 		return nil, err
 	}
-
 	return wallet, nil
 }
 
 func (r *WalletRepository) GetWallet(ctx context.Context, id uuid.UUID) (*models.Wallet, error) {
+	op := "repository.GetWallet"
+	log := r.log.With(slog.String("op", op), slog.String("wallet_id", id.String()))
+
 	query := `SELECT id, balance, created_at, updated_at, version FROM wallets WHERE id = $1`
 	wallet := &models.Wallet{}
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
@@ -75,8 +84,10 @@ func (r *WalletRepository) GetWallet(ctx context.Context, id uuid.UUID) (*models
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			log.Error("No rows returned", slog.Attr{Key: "error", Value: slog.StringValue(err.Error())})
 			return nil, ErrWalletNotFound
 		}
+		log.Error("error receiving wallet", slog.Attr{Key: "error", Value: slog.StringValue(err.Error())})
 		return nil, err
 	}
 
@@ -85,10 +96,15 @@ func (r *WalletRepository) GetWallet(ctx context.Context, id uuid.UUID) (*models
 
 func (r *WalletRepository) UpdateWalletBalance(ctx context.Context, id uuid.UUID, amount int64,
 	operation models.OperationType) (*models.Wallet, error) {
+	op := "repository.UpdateWalletBalance"
+	log := r.log.With(slog.String("op", op), slog.String("wallet_id", id.String()))
+
+	log.Debug("Starting transaction")
 	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{
 		Isolation: sql.LevelSerializable,
 	})
 	if err != nil {
+		log.Error("transaction start error", slog.Attr{Key: "error", Value: slog.StringValue(err.Error())})
 		return nil, err
 	}
 
@@ -103,8 +119,10 @@ func (r *WalletRepository) UpdateWalletBalance(ctx context.Context, id uuid.UUID
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			log.Error("wallet not found", slog.Attr{Key: "error", Value: slog.StringValue(err.Error())})
 			return nil, ErrWalletNotFound
 		}
+		log.Error("error receiving wallet data", slog.Attr{Key: "error", Value: slog.StringValue(err.Error())})
 		return nil, err
 	}
 
@@ -112,12 +130,14 @@ func (r *WalletRepository) UpdateWalletBalance(ctx context.Context, id uuid.UUID
 	switch operation {
 	case models.OperationTypeWithdraw:
 		if wallet.Balance < amount {
+			log.Error("insufficient funds to be debited")
 			return nil, ErrInsufficientFunds
 		}
 		newBalance -= amount
 	case models.OperationTypeDeposit:
 		newBalance += amount
 	default:
+		log.Error("unknown operation type")
 		return nil, ErrUnknownOperationType
 	}
 
@@ -143,15 +163,17 @@ func (r *WalletRepository) UpdateWalletBalance(ctx context.Context, id uuid.UUID
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			log.Error("detected competitive modification", slog.Attr{Key: "error", Value: slog.StringValue(err.Error())})
 			return nil, ErrConcurrentModification
 		}
+		log.Error("Error updating the wallet balance", slog.Attr{Key: "error", Value: slog.StringValue(err.Error())})
 		return nil, err
 	}
 
 	if err := tx.Commit(); err != nil {
+		log.Error("transaction commit error", slog.Attr{Key: "error", Value: slog.StringValue(err.Error())})
 		return nil, err
 	}
-
 	return updatedWallet, nil
 }
 
