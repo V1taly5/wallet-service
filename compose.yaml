@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_DB: mydb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - postgres-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+  migrations:
+    image: migrate/migrate
+    volumes:
+      - ./migrations:/migrations
+    networks:
+      - postgres-network
+    command: ["-path", "/migrations", "-database", "postgres://postgres:postgres@postgres:5432/mydb?sslmode=disable", "up"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  wallet-app:
+    build:
+      context: .
+      dockerfile: dockerfile
+    container_name: wallet-service
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_PORT=8080
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/mydb?sslmode=disable
+      - CONNECTIONPOOL_MAXOPENCONNS=50
+      - CONNECTIONPOOL_MAXIDLECONNS=25
+      - CONNECTIONPOOL_MAXLIFETIME=600s
+    networks:
+      - postgres-network
+
+volumes:
+  postgres_data:
+
+networks:
+  postgres-network:
+    driver: bridge
